@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fleet Portal</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── nav ──────────────────────────────────────────────────── -->
+  <nav class="nav">
+    <a class="nav__logo" href="#">
+      <img src="ntsl-logo.png" alt="NTSL" class="nav__logo-img" />
+    </a>
+
+    <div class="nav__divider"></div>
+    <span class="nav__portal-label">Fleet Portal</span>
+
+    <div class="nav__spacer"></div>
+
+    <div class="nav__client-badge">
+      <div class="nav__client-dot"></div>
+      <span class="nav__client-name" id="clientName">—</span>
+    </div>
+
+    <button class="nav__logout" onclick="handleLogout()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Sign out
+    </button>
+  </nav>
+
+  <!-- ── main ─────────────────────────────────────────────────── -->
+  <main class="main" id="main">
+    <div class="loading" id="loadingState">
+      <div class="spinner"></div>
+      Loading fleet data…
+    </div>
+  </main>
+
+  <!-- data — written by build_data.py; sets window.PORTAL_DATA -->
+  <script src="data/d.js"></script>
+
+  <!-- auth — must load before app modules -->
+  <script src="auth.js"></script>
+  <script>requireAuth();</script>
+
+  <!-- slide-out panel overlay -->
+  <div class="panel-overlay" id="panelOverlay" hidden></div>
+  <aside class="panel" id="truckPanel" hidden></aside>
+
+  <!-- app modules — load order matters -->
+  <script src="filters.js"></script>
+  <script src="kpis.js"></script>
+  <script src="trucks.js"></script>
+  <script src="charts.js"></script>
+  <script src="panel.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
