@@ -100,19 +100,6 @@ function renderFilterBar() {
     <div class="filter-bar" id="filterBar">
       <div class="filter-row">
 
-        <div class="filter-search">
-          <svg class="filter-search__icon" width="14" height="14" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" id="filterRegNo" placeholder="Reg no…"
-                 value="${f.regNo}" autocomplete="off" />
-          <button class="filter-search__clear ${f.regNo ? 'visible' : ''}"
-                  id="clearRegNo" title="Clear">✕</button>
-        </div>
-
-        <div class="filter-divider"></div>
-
         <select class="filter-select date-type-select" id="filterDateType">
           <option value="inspection" ${f.dateType==='inspection'?'selected':''}>Inspection date</option>
           <option value="expiry"     ${f.dateType==='expiry'    ?'selected':''}>Expiry date</option>
@@ -154,7 +141,20 @@ function renderFilterBar() {
 
         ${modelSelect}
 
-<span class="filter-bar__active-count ${activeCount > 0 ? 'visible' : ''}"
+        <div class="filter-divider"></div>
+
+        <div class="filter-search">
+          <svg class="filter-search__icon" width="14" height="14" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="filterRegNo" placeholder="Reg no…"
+                 value="${f.regNo}" autocomplete="off" />
+          <button class="filter-search__clear ${f.regNo ? 'visible' : ''}"
+                  id="clearRegNo" title="Clear">✕</button>
+        </div>
+
+        <span class="filter-bar__active-count ${activeCount > 0 ? 'visible' : ''}"
               id="activeCount">${activeCount} active</span>
         <button class="filter-clear ${activeCount > 0 ? 'visible' : ''}"
                 id="clearAll">Clear all</button>
