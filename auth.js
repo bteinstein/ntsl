@@ -6,17 +6,17 @@ function isAuthenticated() {
 }
 
 function requireAuth() {
-  if (!isAuthenticated()) window.location.replace('index.html');
+  if (!isAuthenticated()) window.location.replace('login.html');
 }
 
 function redirectIfAuthenticated() {
-  if (isAuthenticated()) window.location.replace('dashboard.html');
+  if (isAuthenticated()) window.location.replace('index.html');
 }
 
 function logout() {
   sessionStorage.removeItem(_NTSL_KEY);
   localStorage.removeItem(_NTSL_KEY);
-  window.location.href = 'index.html';
+  window.location.href = 'login.html';
 }
 
 async function _sha256(str) {
@@ -51,7 +51,7 @@ async function handleLogin(e) {
   if (usernameHash === auth.client_id && passwordHash === auth.password_hash) {
     const store = remember ? localStorage : sessionStorage;
     store.setItem(_NTSL_KEY, '1');
-    window.location.href = 'dashboard.html';
+    window.location.href = 'index.html';
   } else {
     errorEl.textContent = 'Incorrect username or password.';
     errorEl.hidden = false;
