@@ -147,6 +147,15 @@ function renderTruckTable() {
     <div class="truck-header">
       <span class="truck-title">Truck List</span>
       <span class="truck-count" id="truck-count">${trucks.length} trucks</span>
+      <button type="button" class="truck-export" onclick="exportTrucksCSV()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export CSV
+      </button>
     </div>
     ${dateFilterBanner()}
     <div class="truck-table-wrap">
@@ -172,4 +181,42 @@ function renderTruckTable() {
   section.querySelectorAll('.truck-row--clickable').forEach(row => {
     row.addEventListener('click', () => openPanel(row.dataset.reg));
   });
+}
+
+// ── CSV export — uses currently filtered + sorted list ───────────────
+function exportTrucksCSV() {
+  const trucks = sortTrucks(filteredTrucks());
+  const cols = [
+    ['Reg No',          t => t.reg_no],
+    ['Brand',           t => t.brand || ''],
+    ['Model',           t => t.model || ''],
+    ['Status',          t => t.truck_status],
+    ['Health %',        t => t.health_score ?? ''],
+    ['Risk',            t => t.risk ?? ''],
+    ['Certified',       t => t.certified ? 'Yes' : 'No'],
+    ['Last Insp.',      t => t.last_insp_date ?? ''],
+    ['Expiry',          t => t.expiry_date ?? ''],
+    ['Advisor',         t => t.advisor ?? ''],
+    ['Failing Systems', t => (t.failing_systems || []).join('; ')],
+    ['IA Items',        t => (t.ia_items || []).join('; ')],
+  ];
+  const esc = v => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const head = cols.map(c => esc(c[0])).join(',');
+  const body = trucks.map(t => cols.map(c => esc(c[1](t))).join(',')).join('\n');
+  const csv  = head + '\n' + body + '\n';
+
+  const client = (state.data.meta.client || 'client').replace(/[^A-Za-z0-9]+/g, '_');
+  const stamp  = state.data.meta.ref_date || new Date().toISOString().slice(0, 10);
+  const blob   = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url    = URL.createObjectURL(blob);
+  const a      = document.createElement('a');
+  a.href = url;
+  a.download = `${client}_trucks_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

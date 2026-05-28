@@ -17,110 +17,212 @@ function _splinePath(xs, ys, tension = 0.35) {
   return d;
 }
 
+// certified-count per period — computed from history (sum across all trucks)
+function _certifiedByPeriod() {
+  const out = {};
+  const hist = state.data.history || {};
+  Object.values(hist).forEach(rows => {
+    rows.forEach(r => {
+      out[r.period] = (out[r.period] || 0) + (r.certified ? 1 : 0);
+    });
+  });
+  return out;
+}
+
 function renderTrendChart() {
   const section = document.getElementById('trend-section');
-  const trend   = state.data.trend;
-  const target  = state.data.kpis.fleet_health_target;
+  const trendRaw = state.data.trend;
+  const target   = state.data.kpis.fleet_health_target;
 
-  if (!trend || trend.length < 2) {
+  if (!trendRaw || trendRaw.length < 2) {
     section.innerHTML = '<p class="trend-empty">No trend data available.</p>';
     return;
   }
 
-  const W = 760, H = 180;
-  const padL = 48, padR = 52, padT = 24, padB = 44;
-  const cW = W - padL - padR;
-  const cH = H - padT - padB;
-  const N  = trend.length;
+  // chronological sort
+  const trend = [...trendRaw].sort((a, b) => {
+    const ax = stripPeriodPrefix(a.period).split('–')[0].trim();
+    const bx = stripPeriodPrefix(b.period).split('–')[0].trim();
+    return new Date(`${ax}, 2026`).getTime() - new Date(`${bx}, 2026`).getTime();
+  });
 
-  const vals = trend.map(t => t.avg_health_pct);
-  const minVal = Math.floor(Math.min(...vals) / 10) * 10 - 5;
-  const maxVal = 100;
-  const range  = maxVal - minVal;
+  const certByPeriod = _certifiedByPeriod();
 
-  function px(i) { return padL + (i / (N - 1)) * cW; }
-  function py(v) { return padT + cH - ((v - minVal) / range) * cH; }
+  // ── layout ──
+  // Two stacked plot areas inside one SVG:
+  //   1. Line chart (health %)
+  //   2. Bar strip (trucks inspected) — own baseline, no shared y-axis
+  const W           = 880;
+  const padL        = 60;
+  const padR        = 56;
+  const padT        = 28;
+  const innerMargin = 24;
+
+  const lineH    = 170;                         // height of line chart
+  const stripGap = 14;                          // gap between line and bars
+  const stripH   = 40;                          // bar strip height
+  const xLblPad  = 22;                          // space for x-axis date labels
+  const padB     = 14;                          // bottom padding
+  const H        = padT + lineH + stripGap + stripH + xLblPad + padB;
+
+  const cW         = W - padL - padR;
+  const N          = trend.length;
+  const lineTop    = padT;
+  const lineBottom = padT + lineH;
+  const stripTop   = lineBottom + stripGap;
+  const stripBot   = stripTop + stripH;
+
+  const vals    = trend.map(t => t.avg_health_pct);
+  const volumes = trend.map(t => t.trucks_inspected);
+  const minVal  = 40;
+  const maxVal  = 100;
+  const range   = maxVal - minVal;
+
+  // Bar strip scaling — min 0 so all bars share a true baseline
+  const maxVol  = Math.max(...volumes, 1);
+
+  function px(i)   { return padL + innerMargin + (i / (N - 1)) * (cW - innerMargin * 2); }
+  function py(v)   { return lineBottom - ((v - minVal) / range) * lineH; }
+  function barTop(v) { return stripBot - (v / maxVol) * stripH; }
 
   const xs = vals.map((_, i) => px(i));
   const ys = vals.map(v => py(v));
 
-  // y grid + labels
-  const yTicks = [0, 25, 50, 75, 100]
-    .filter(v => v >= minVal && v <= maxVal)
-    .map(v => {
-      const y = py(v).toFixed(1);
-      return `
-        <line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"
-              stroke="var(--border)" stroke-width="${v === 0 ? 1 : 0.5}"/>
-        <text x="${padL - 6}" y="${y}" text-anchor="end" dominant-baseline="middle"
-              class="trend-tick">${v}</text>`;
-    }).join('');
+  // ── line chart y-grid + labels ──
+  const yTicks = [50, 60, 70, 80, 90, 100].map(v => {
+    const y = py(v).toFixed(1);
+    return `
+      <line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"
+            stroke="var(--border)" stroke-width="0.5"/>
+      <text x="${padL - 12}" y="${y}" text-anchor="end" dominant-baseline="middle"
+            class="trend-tick">${v}%</text>`;
+  }).join('');
 
-  // target dashed line
+  // ── target line ──
   const ty = py(target).toFixed(1);
   const targetLine = `
     <line x1="${padL}" y1="${ty}" x2="${W - padR}" y2="${ty}"
           stroke="var(--available)" stroke-width="1.2" stroke-dasharray="6 3" opacity="0.7"/>
-    <text x="${W - padR + 5}" y="${ty}" dominant-baseline="middle"
+    <text x="${W - padR + 6}" y="${ty}" dominant-baseline="middle"
           class="trend-target-lbl">▸ ${target}%</text>`;
 
-  // smooth line + area (catmull-rom spline)
+  // ── line + area ──
   const linePath = _splinePath(xs, ys);
-  const bottom   = (padT + cH).toFixed(1);
-  const areaPath = `${linePath} L${xs[N-1].toFixed(1)},${bottom} L${xs[0].toFixed(1)},${bottom} Z`;
-
-  const area = `<path d="${areaPath}" fill="var(--green)" opacity="0.07"/>`;
+  const areaPath = `${linePath} L${xs[N-1].toFixed(1)},${lineBottom} L${xs[0].toFixed(1)},${lineBottom} Z`;
+  const area = `<path d="${areaPath}" fill="var(--green)" opacity="0.06"/>`;
   const line = `<path d="${linePath}" fill="none" stroke="var(--green)"
                       stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
 
-  // dots
+  // ── line dots (interactive) ──
   const dots = vals.map((v, i) => {
-    const clr = v >= target ? 'var(--available)' : 'var(--expiring)';
-    const lbl = stripPeriodPrefix(trend[i].period);
-    return `<circle cx="${xs[i].toFixed(1)}" cy="${ys[i].toFixed(1)}" r="4" fill="${clr}"
-                    stroke="#fff" stroke-width="1.5" class="trend-dot">
-              <title>${lbl}\n${v}% health · ${trend[i].trucks_inspected} trucks</title>
-            </circle>`;
+    const clr  = v >= target ? 'var(--available)' : 'var(--expiring)';
+    const lbl  = stripPeriodPrefix(trend[i].period);
+    const cert = certByPeriod[trend[i].period] ?? 0;
+    return `<circle cx="${xs[i].toFixed(1)}" cy="${ys[i].toFixed(1)}" r="4.5" fill="${clr}"
+                    stroke="#fff" stroke-width="1.8" class="trend-dot"
+                    data-label="${lbl}"
+                    data-health="${v}"
+                    data-inspected="${trend[i].trucks_inspected}"
+                    data-certified="${cert}"></circle>`;
   }).join('');
 
-  // value labels — smaller, muted; nudge down if too close to top
+  // ── value labels above line ──
   const valLabels = vals.map((v, i) => {
-    const raw    = ys[i] - 9;
-    const cy     = (raw < padT + 2 ? ys[i] + 13 : raw).toFixed(1);
-    const anchor = i === 0 ? 'start' : i === N - 1 ? 'end' : 'middle';
-    return `<text x="${xs[i].toFixed(1)}" y="${cy}" text-anchor="${anchor}"
+    const cy = (ys[i] - 10).toFixed(1);
+    return `<text x="${xs[i].toFixed(1)}" y="${cy}" text-anchor="middle"
                   class="trend-val-lbl">${v}%</text>`;
   }).join('');
 
-  // x-axis labels
+  // ── volume bar strip (below) ──
+  const barW = Math.max(10, (cW - innerMargin * 2) / N * 0.4);
+  const stripBaseline = `<line x1="${padL}" y1="${stripBot}" x2="${W - padR}" y2="${stripBot}"
+                              stroke="var(--border)" stroke-width="0.6"/>`;
+  const bars = volumes.map((v, i) => {
+    const top = barTop(v);
+    const h   = stripBot - top;
+    const x   = xs[i] - barW / 2;
+    return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}"
+                  height="${h.toFixed(1)}" fill="var(--green)" opacity="0.55" rx="2"
+                  class="trend-bar"
+                  data-label="${stripPeriodPrefix(trend[i].period)}"
+                  data-inspected="${v}"/>`;
+  }).join('');
+  const barCounts = volumes.map((v, i) => {
+    return `<text x="${xs[i].toFixed(1)}" y="${(barTop(v) - 3).toFixed(1)}"
+                  text-anchor="middle" class="trend-bar-lbl">${v}</text>`;
+  }).join('');
+  const stripLbl = `<text x="${padL - 12}" y="${((stripTop + stripBot) / 2).toFixed(1)}"
+                          text-anchor="end" dominant-baseline="middle"
+                          class="trend-strip-lbl">Inspected</text>`;
+
+  // ── x-axis date labels ──
+  const xLblY = stripBot + xLblPad - 6;
   const xLabels = trend.map((t, i) => {
     const short = stripPeriodPrefix(t.period).split('–')[0].trim();
-    return `<text x="${xs[i].toFixed(1)}" y="${H - padB + 14}" text-anchor="middle"
+    return `<text x="${xs[i].toFixed(1)}" y="${xLblY}" text-anchor="middle"
                   class="trend-tick">${short}</text>`;
   }).join('');
 
-  const pNums = trend.map((t, i) => {
-    const num = t.period.match(/Period (\d+)/i)?.[1] ?? (i + 1);
-    return `<text x="${xs[i].toFixed(1)}" y="${H - padB + 28}" text-anchor="middle"
-                  class="trend-tick trend-pnum">P${num}</text>`;
-  }).join('');
+  // ── axis title ──
+  const yAxLbl = `<text x="${padL - 12}" y="${padT - 10}" text-anchor="end"
+                        class="trend-axis-lbl">Health %</text>`;
 
   section.innerHTML = `
     <div class="trend-header">
       <span class="trend-title">Fleet Health Trend</span>
-      <span class="trend-sub">avg health score per inspection period · target ${target}% · all trucks, fleet-wide</span>
+      <span class="trend-sub">avg health % per inspection period · target ${target}% · bars show trucks inspected</span>
     </div>
-    <div class="trend-wrap">
-      <svg class="trend-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"
+    <div class="trend-wrap" id="trendWrap">
+      <svg class="trend-svg" id="trendSvg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"
            preserveAspectRatio="xMidYMid meet">
         ${yTicks}
+        ${yAxLbl}
         ${targetLine}
         ${area}
         ${line}
-        ${dots}
         ${valLabels}
+        ${dots}
+        ${stripBaseline}
+        ${bars}
+        ${barCounts}
+        ${stripLbl}
         ${xLabels}
-        ${pNums}
       </svg>
+      <div class="trend-tooltip" id="trendTooltip" hidden></div>
     </div>`;
+
+  bindTrendHover();
+}
+
+function bindTrendHover() {
+  const wrap    = document.getElementById('trendWrap');
+  const tooltip = document.getElementById('trendTooltip');
+  const svg     = document.getElementById('trendSvg');
+  if (!wrap || !tooltip || !svg) return;
+
+  const items = svg.querySelectorAll('.trend-dot, .trend-bar');
+  items.forEach(d => {
+    d.addEventListener('mouseenter', () => {
+      const label     = d.dataset.label;
+      const health    = d.dataset.health;
+      const inspected = d.dataset.inspected;
+      const certified = d.dataset.certified;
+      tooltip.innerHTML = `
+        <div class="trend-tt-title">${label}</div>
+        ${health      ? `<div class="trend-tt-row"><span>Avg health</span><strong>${health}%</strong></div>` : ''}
+        <div class="trend-tt-row"><span>Trucks inspected</span><strong>${inspected}</strong></div>
+        ${certified   ? `<div class="trend-tt-row"><span>Certified</span><strong>${certified}</strong></div>` : ''}`;
+      tooltip.hidden = false;
+    });
+    d.addEventListener('mousemove', (e) => {
+      const r = wrap.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      const tw = tooltip.offsetWidth || 180;
+      const flipLeft = (x + tw + 28) > r.width;
+      tooltip.style.left = `${flipLeft ? x - tw - 14 : x + 14}px`;
+      tooltip.style.top  = `${y - 8}px`;
+    });
+    d.addEventListener('mouseleave', () => { tooltip.hidden = true; });
+  });
 }

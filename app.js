@@ -51,6 +51,7 @@ function renderAll() {
 function onFilterChange() {
   updateFilterChips();
   updateFilterMeta();
+  renderKPIs();         // keep CTA toggle state in sync
   renderTruckTable();
 }
 
@@ -109,6 +110,20 @@ function countActiveFilters() {
 
 function handleLogout() {
   if (confirm('Sign out?')) logout();
+}
+
+// ── exposed for KPI alert tile CTAs ──────────────────────────────────
+function setStatusFilter(statusKey) {
+  const cur = state.filters.statuses;
+  const isOnlyThis = cur.length === 1 && cur[0] === statusKey;
+  state.filters.statuses = isOnlyThis ? [] : [statusKey];
+  renderFilterBar();
+  renderKPIs();   // refresh CTA labels (View Trucks ↔ Clear)
+  onFilterChange();
+  if (!isOnlyThis) {
+    document.getElementById('trucks-section')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 // ── start ─────────────────────────────────────────────────────────────

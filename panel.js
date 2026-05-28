@@ -65,11 +65,12 @@ function buildPanel(truck) {
 // ── period tabs ───────────────────────────────────────────────────────
 function buildPeriodTabs() {
   return _panelHistory.map((h, i) => {
-    const num   = h.period.match(/Period (\d+)/i)?.[1] ?? (i + 1);
+    const short  = stripPeriodPrefix(h.period).split('–')[0].trim();
     const active = i === _selectedPeriod ? ' panel__period-tab--active' : '';
     const hasIA  = h.ia > 0 ? ' panel__period-tab--has-ia' : '';
     return `<button class="panel__period-tab${active}${hasIA}"
-                    onclick="selectPeriod(${i})">P${num}</button>`;
+                    onclick="selectPeriod(${i})"
+                    title="${stripPeriodPrefix(h.period)}">${short}</button>`;
   }).join('');
 }
 
